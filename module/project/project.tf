@@ -1,11 +1,14 @@
+#Enable kubernetes API
 resource "google_project_service" "project" {
-  project = "urban-andreileo"
-  service = "iam.googleapis.com"
+  project = var.project
+  service = var.service
 
   timeouts {
-    create = "30m"
-    update = "40m"
+    create = var.timeouts_create
+    update = var.timeouts_update
   }
 
-  disable_dependent_services = true
+  disable_dependent_services = var.disable_dependent_services
 }
+
+#Create storage for kubernetes tfstate
