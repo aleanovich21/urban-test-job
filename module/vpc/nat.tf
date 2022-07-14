@@ -19,5 +19,5 @@ resource "google_compute_address" "nat" {
   address_type = var.address_type
   network_tier = var.network_tier
 
-  depends_on = [google_project_service.compute]
+  # depends_on = [google_project_service.compute]
 }
