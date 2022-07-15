@@ -3,8 +3,8 @@ resource "google_container_cluster" "primary" {
   location                 = var.cluster_location
   remove_default_node_pool = var.remove_default_node_pool
   initial_node_count       = var.initial_node_count
-  network                  = var.google_compute_network_name
-  subnetwork               = var.private_subnet
+  network                  = google_compute_network.main.self_link
+  subnetwork               = google_compute_subnetwork.private.self_link
   logging_service          = var.logging_service
   monitoring_service       = var.monitoring_service
   networking_mode          = var.networking_mode
@@ -25,7 +25,7 @@ resource "google_container_cluster" "primary" {
   }
 
   workload_identity_config {
-    workload_pool = "urban-andreileo.svc.id.goog"
+    workload_pool = "${lower(var.project)}.svc.id.goog"
   }
 
   ip_allocation_policy {

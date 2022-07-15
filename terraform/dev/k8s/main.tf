@@ -1,8 +1,8 @@
 # Enable Kubernetes Engine API
 # https://console.cloud.google.com/marketplace/product/google/container.googleapis.com?returnUrl=%2Fkubernetes%2Flist%2Foverview%3Freferrer%3Dsearch%26authuser%3D0%26project%3Durban-andreileo&authuser=0&project=urban-andreileo
 
-module "vpc" {
-    source = "../../module/vpc"
+module "k8s" {
+    source = "../../module/k8s"
 
     region = var.region
     project = var.project
@@ -38,15 +38,7 @@ module "vpc" {
     firewall_name = var.firewall_name
     protocol = var.protocol
     allow_ports = var.allow_ports
-}
-
-module "k8s" {
-    source = "../../module/k8s"
-
-    region = var.region
-    project = var.project
-    env = var.env
-
+    
     cluster_name = var.cluster_name
     cluster_location = var.cluster_location
     remove_default_node_pool = var.remove_default_node_pool

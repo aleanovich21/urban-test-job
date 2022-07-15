@@ -1,0 +1,130 @@
+name: Docker Image CI
+
+env:
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  tf_version: 'latest'
+  tf_working_dir: '.'
+
+on:
+  pull_request:
+    types: [ opened, reopened, synchronize, closed ]
+    branches: [ master ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    environment: 
+      docker_secret
+
+    steps:
+# Clone main repository
+      - uses: actions/checkout@v2
+# Clone repository with script
+      - uses: actions/checkout@v2
+        with:
+          repository: aleanovich21/scripts
+          token: ${{ secrets.ACCESS_TOKEN }}
+          path: scripts
+# Getting variables from pipline_conf
+      - name: Get secrets
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"Deployment start!"}' $SLACK_WEBHOOK_URL
+          ./test-scripts/pars.sh
+# Creating hash and branch version name if we did push to main branch
+      - name: Application version for push
+        if: ${{ github.event_name == 'push' }} && ${{ github.event_name == 'workflow_dispatch'}}
+        run: |
+          ./test-scripts/app_version.sh
+# Creating tag version name if we created tag
+      - name: Tag version
+        if: ${{ github.event_name == 'create' }}
+        run: |
+          ./test-scripts/tag_version.sh
+# Build docker image
+      - name: docker build Dockerfile
+        run: |
+          echo "---BUILD IMAGE DOCKER---"
+          ./test-scripts/build.sh
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"Building finish successfully!"}' $SLACK_WEBHOOK_URL
+# Login to DockerHub
+      - uses: docker/login-action@v1
+        with:
+          username: ${{secrets.DOCKERHUB_USERNAME}}
+          password: ${{secrets.DOCKERHUB_TOKEN}}
+# Push image to the repository
+      - name: docker push
+        run: |
+          echo "---PUSH IMAGE TO DOCKERHUB---"
+          ./test-scripts/push.sh
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set GCP environment
+        id: set_gcp_env
+        run: echo ::set-env name=BRANCH_NAME::$(echo ${GITHUB_BASE_REF#refs/heads/})
+
+      - name: configure gcloud
+        id: config_gcloud
+        uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+        with:
+          version: "latest"
+          service_account_email: ${{ secrets.GCP_SA_EMAIL }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+
+      - name: checkout
+        id: checkout_code
+        uses: actions/checkout@v2
+
+      - name: set GCP project
+        id: config_project
+        run: gcloud config set project xxxx
+
+      - name: "Decrypt key service account"
+        id: decrypt_SA
+        run: gcloud secrets versions access latest --secret=test-terraform-key --project="xxxx" 
+        working-directory: "environments/${{ env.BRANCH_NAME }}"
+
+      - name: "Terraform Init"
+        id: terraform_init
+        uses: ops18/terraform-github-actions@master
+        with:
+          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+          tf_actions_comment: "false"
+          tf_actions_working_dir: environments/${{ env.BRANCH_NAME }}
+          tf_actions_subcommand: init
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY}}
+      - name: "Terraform Validate"
+        id: terraform_validate
+        uses: ops18/terraform-github-actions@master
+        with:
+          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+          tf_actions_comment: "false"
+          tf_actions_working_dir: environments/${{ env.BRANCH_NAME }}
+          tf_actions_subcommand: validate
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY}} 
+      - name: "Terraform Plan"
+        id: terraform_plan
+        uses: ops18/terraform-github-actions@master
+        with:
+          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+          tf_actions_comment: "false"
+          tf_actions_working_dir: environments/${{ env.BRANCH_NAME }}
+          tf_actions_subcommand: plan
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY}}
+          
+      - name: "Terraform Apply"
+        uses: ops18/terraform-github-actions@master
+        id: terraform_apply
+        with:
+          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+          tf_actions_comment: "false"
+          tf_actions_working_dir: environments/${{ env.BRANCH_NAME }}
+          tf_actions_subcommand: apply
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY}}
